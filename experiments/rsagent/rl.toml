@@ -1,0 +1,105 @@
+# RSAgent RL Training Config
+# Multi-step RSA environment: T=3, M=1, N=4, K=2
+#
+# Each rollout produces T*M*N = 12 trajectory steps.
+# With branching strategy, each step is an independent training sample.
+#
+# Prerequisites:
+#   1. Clone prime-rl and set up its venv
+#   2. Install RSAgent into the prime-rl venv:
+#      uv pip install -e /path/to/RSAgent
+#
+# Run (from prime-rl directory):
+#   uv run rl @ /path/to/RSAgent/experiments/rsagent/rl.toml \
+#     --inference_gpu_ids 0,1 --trainer_gpu_ids 2,3 \
+#     --inference.parallel.dp 2
+
+# ============================================================================
+# Training
+# ============================================================================
+max_steps = 500
+seq_len = 16384             # Aggregation prompts can be ~12K tokens
+output_dir = "outputs/rsagent"
+
+# ============================================================================
+# Model
+# ============================================================================
+[model]
+name = "Qwen/Qwen3-4B-Instruct-2507"
+
+# ============================================================================
+# Checkpointing
+# ============================================================================
+[ckpt]
+interval = 50
+
+# ============================================================================
+# W&B Logging
+# ============================================================================
+[wandb]
+project = "rsagent-rl"
+name = "rsagent-sokoban-t3-n4-k2"
+
+# ============================================================================
+# Trainer Config
+# ============================================================================
+[trainer.model]
+impl = "liger_kernel"
+
+[trainer.model.ac]
+freq = 1
+
+[trainer.model.lora]
+rank = 32
+alpha = 64
+
+[trainer.ckpt.weights]
+save_adapter_separately = true
+
+[trainer.optim]
+lr = 1e-5
+weight_decay = 0.0
+betas1 = 0.9
+betas2 = 0.9
+max_norm = 1.0
+
+# ============================================================================
+# Orchestrator Config
+# ============================================================================
+[orchestrator]
+batch_size = 64             # 16 unique problems x 4 rollouts each
+rollouts_per_example = 4    # >= 2 required for GRPO signal
+trajectory_strategy = "branching"  # Each trajectory step = independent training sample
+
+[orchestrator.sampling]
+max_tokens = 4096           # Per-generation response length
+temperature = 1.0
+
+# RSAgent env: wraps sokoban-env in RSA loop
+# Change inner_env_id to use other environments (e.g. "countdown")
+[[orchestrator.env]]
+id = "rsagent"
+args = { inner_env_id = "sokoban-env", inner_env_args = { num_train_examples = 15000, num_eval_examples = 1000, seed = 40, min_w = 4, max_w = 9, min_h = 4, max_h = 9, min_boxes = 1, max_boxes = 7, max_depth = 80 }, M = 1, N = 4, K = 2, T = 3, task = "rg", seed = 1234, final_reward_metric = "mean_accuracy" }
+
+# ============================================================================
+# Inference Config
+# ============================================================================
+[inference]
+# gpu_memory_utilization = 0.9
+
+# ============================================================================
+# Eval Config
+# ============================================================================
+[orchestrator.eval]
+num_examples = 64
+rollouts_per_example = 1
+eval_base_model = false
+interval = 10000
+
+[orchestrator.eval.sampling]
+max_tokens = 4096
+temperature = 1.0
+
+[[orchestrator.eval.env]]
+id = "rsagent"
+args = { inner_env_id = "sokoban-env", inner_env_args = { num_train_examples = 5000, num_eval_examples = 1000, seed = 42, min_w = 4, max_w = 9, min_h = 4, max_h = 9, min_boxes = 1, max_boxes = 7, max_depth = 80 }, M = 1, N = 4, K = 2, T = 3, task = "rg" }

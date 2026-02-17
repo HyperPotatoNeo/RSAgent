@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "rsagent"
+version = "0.1.0"
+description = "RSAgent: End-to-end RL training for Recursive Self-Aggregation (RSA)"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+]
+
+[project.optional-dependencies]
+train = ["verifiers"]
+vllm = ["vllm", "transformers", "torch"]
+anthropic = ["anthropic"]
+openai = ["openai"]
+gemini = ["google-genai"]
+math-eval = ["datasets"]
+all = ["verifiers", "vllm", "transformers", "torch", "anthropic", "openai", "google-genai", "datasets"]
+
+[tool.setuptools.packages.find]
+include = ["rsa*", "rsagent*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
