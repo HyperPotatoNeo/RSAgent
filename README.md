@@ -49,12 +49,16 @@ RSAgent/
 ├── rsagent/                # Verifiers MultiTurnEnv for RL training
 │   ├── __init__.py         # load_environment() entry point for prime-rl
 │   └── env.py              # RSAgent environment
+├── rsa_distill/            # Self-aggregation context distillation env
+│   ├── __init__.py         # load_environment() entry point for prime-rl
+│   └── env.py              # RSADistillEnv (leave-one-out student/teacher)
 ├── experiments/
 │   └── rsagent/
 │       └── rl.toml         # Training config for prime-rl
 ├── tests/
 │   ├── test_rsa.py         # RSA algorithm unit tests (no GPU)
-│   └── test_rsagent.py     # RSAgent env unit tests (no GPU)
+│   ├── test_rsagent.py     # RSAgent env unit tests (no GPU)
+│   └── test_rsa_distill.py # RSA-Distill env unit tests (57 tests, no GPU)
 ├── scripts/
 │   ├── inspect_rollout.py  # Debug: decode rollout binary, show rewards/text
 │   └── inspect_rsa_steps.py # Debug: show prompts across RSA steps
@@ -153,6 +157,30 @@ Aggregation prompts embed K previous candidate responses. With `max_tokens=4096`
 | Step 1+ | ~8500 (K=2 candidates + question) | up to 4096 | ~12600 |
 
 Set `seq_len >= 16384` to accommodate the longest samples.
+
+## RSA-Distill
+
+RSA-Distill (`rsa_distill/`) is a self-aggregation context distillation environment. Instead of multi-step RSA, it uses single-step leave-one-out aggregation as an implicit teacher for context distillation.
+
+For each problem, one rollout produces 2K trajectory steps:
+- **Steps 0..K-1 (Student)**: K responses to the raw question
+- **Steps K..2K-1 (Teacher)**: K responses from leave-one-out aggregation prompts
+
+Per-step GRPO within each group, and optional bidirectional KL distillation via `enable_distill`.
+
+```toml
+[[orchestrator.env]]
+id = "rsa_distill"
+args = { inner_env_id = "countdown", K = 4, task = "rg", per_step_grpo = true, enable_distill = false }
+```
+
+| Param | Description | Default |
+|-------|-------------|---------|
+| `K` | Student (and teacher) responses per problem | 4 |
+| `task` | Prompt format: `"rg"`, `"math"`, `"general"` | `"rg"` |
+| `per_step_grpo` | Per-step GRPO within student/teacher groups | `true` |
+| `enable_distill` | Bidirectional KL via prompt_text override | `false` |
+| `greedy_reward_weight` | Weight for student_mean in rollout reward | `0.0` |
 
 ## Testing
 

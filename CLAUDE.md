@@ -2,10 +2,11 @@
 
 ## What This Repo Is
 
-RSAgent is an end-to-end RL training harness for Recursive Self-Aggregation (RSA). It contains two packages:
+RSAgent is an end-to-end RL training harness for Recursive Self-Aggregation (RSA). It contains three packages:
 
 1. **`rsa/`** — Core RSA algorithm: multi-step inference with island topology, aggregation prompts, and LLM adapters (vLLM, OpenAI, Anthropic, Gemini). No RL dependencies.
 2. **`rsagent/`** — Verifiers `MultiTurnEnv` subclass that wraps any single-step verifiers environment and runs the RSA loop as one rollout. Integrates with [prime-rl](https://github.com/novaskyai/prime-rl) for GRPO training.
+3. **`rsa_distill/`** — Self-aggregation context distillation env. Uses single-step leave-one-out aggregation: K student responses + K teacher responses (each from a leave-one-out aggregation prompt). Per-step GRPO within groups, optional bidirectional KL distillation.
 
 ## Architecture
 
@@ -59,9 +60,10 @@ def _passthrough_reward(state, **kwargs):
 ## Testing
 
 ```bash
-python -m pytest tests/ -v          # All unit tests (no GPU)
-python -m pytest tests/test_rsa.py  # RSA algorithm only
-python -m pytest tests/test_rsagent.py  # RSAgent env only
+python -m pytest tests/ -v               # All unit tests (no GPU)
+python -m pytest tests/test_rsa.py       # RSA algorithm only
+python -m pytest tests/test_rsagent.py   # RSAgent env only
+python -m pytest tests/test_rsa_distill.py  # RSA-Distill env only (57 tests)
 ```
 
 Tests use mock inner_env and mock client — no GPU, no API keys, no prime-rl needed.
@@ -93,4 +95,6 @@ Create `rsa/adapters/your_adapter.py` inheriting from `BaseAdapter`. Implement `
 | `rsa/adapters/base.py` | `BaseAdapter` ABC + `GenerationResult` |
 | `rsagent/__init__.py` | `load_environment()` for prime-rl |
 | `rsagent/env.py` | `RSAgent(MultiTurnEnv)` — the RL environment |
+| `rsa_distill/__init__.py` | `load_environment()` for RSA-Distill |
+| `rsa_distill/env.py` | `RSADistillEnv(MultiTurnEnv)` — context distillation env |
 | `experiments/rsagent/rl.toml` | Training config for prime-rl |
