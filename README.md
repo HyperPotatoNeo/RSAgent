@@ -59,6 +59,7 @@ RSAgent/
 │   ├── test_rsa.py         # RSA algorithm unit tests (no GPU)
 │   ├── test_rsagent.py     # RSAgent env unit tests (no GPU)
 │   └── test_rsa_distill.py # RSA-Distill env unit tests (57 tests, no GPU)
+├── contextual_learning/     # Git submodule → github.com/HyperPotatoNeo/contextual_learning
 ├── scripts/
 │   ├── inspect_rollout.py  # Debug: decode rollout binary, show rewards/text
 │   └── inspect_rsa_steps.py # Debug: show prompts across RSA steps
@@ -167,6 +168,17 @@ For each problem, one rollout produces 2K trajectory steps:
 - **Steps K..2K-1 (Teacher)**: K responses from leave-one-out aggregation prompts
 
 Per-step GRPO within each group, and optional bidirectional KL distillation via `enable_distill`.
+
+### Training with contextual_learning
+
+RSA-Distill requires [contextual_learning](https://github.com/HyperPotatoNeo/contextual_learning) (included as a git submodule), a fork of prime-rl with modifications for context distillation:
+
+- **Per-step reward/advantage passthrough**: `env_worker.py` and `trajectories.py` propagate per-step rewards and advantages set by the environment (e.g. per-group GRPO from RSADistillEnv) through to `TrainingSample`, bypassing the orchestrator's default rollout-level assignment.
+- **Empty completion guard**: `packer.py` filters out samples with zero completion tokens that can occur during multi-turn generation.
+- **Diagnostic metrics**: `loss.py` logs `task_adv_abs`, `kl_contrib_abs`, `raw_teacher_lp`, and `raw_trainer_lp` for monitoring the balance between task advantage and KL regularization terms.
+- **Experiment configs**: `experiments/rsa_distill/` contains ready-to-use TOML configs for RSA-Distill training.
+
+Standard RSAgent (multi-step RSA without distillation) works with unmodified prime-rl.
 
 ```toml
 [[orchestrator.env]]
