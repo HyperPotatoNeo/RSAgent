@@ -304,9 +304,13 @@ class RSAgent(MultiTurnEnv):
 
     def _score_candidate(self, text: str, answer_idx: str) -> float:
         """Score a single candidate using inner_env's scoring."""
-        entry = self.inner_env.rg_dataset[int(answer_idx)]
         parsed = self.inner_env.parser.parse_answer(text)
         parsed_str = str(parsed).strip() if parsed is not None else None
+        # Scoring protocol: use score_candidate if available (e.g. RGMixEnv)
+        if hasattr(self.inner_env, "score_candidate"):
+            return self.inner_env.score_candidate(int(answer_idx), parsed_str)
+        # Fallback: direct rg_dataset access (standard ReasoningGymEnv)
+        entry = self.inner_env.rg_dataset[int(answer_idx)]
         return self.inner_env.rg_dataset.score_answer(
             answer=parsed_str, entry=entry
         )
@@ -315,7 +319,6 @@ class RSAgent(MultiTurnEnv):
         self, candidates: List[str], answer_idx: str
     ) -> float:
         """Compute majority vote reward from candidates."""
-        entry = self.inner_env.rg_dataset[int(answer_idx)]
         parsed_answers: List[str] = []
         for c in candidates:
             parsed = self.inner_env.parser.parse_answer(c)
@@ -325,7 +328,13 @@ class RSAgent(MultiTurnEnv):
         if not parsed_answers:
             return 0.0
         most_common = Counter(parsed_answers).most_common(1)[0][0]
-        score = self.inner_env.rg_dataset.score_answer(
-            answer=most_common, entry=entry
-        )
+        # Scoring protocol: use score_candidate if available (e.g. RGMixEnv)
+        if hasattr(self.inner_env, "score_candidate"):
+            score = self.inner_env.score_candidate(int(answer_idx), most_common)
+        else:
+            # Fallback: direct rg_dataset access (standard ReasoningGymEnv)
+            entry = self.inner_env.rg_dataset[int(answer_idx)]
+            score = self.inner_env.rg_dataset.score_answer(
+                answer=most_common, entry=entry
+            )
         return 1.0 if score >= 1.0 else 0.0
